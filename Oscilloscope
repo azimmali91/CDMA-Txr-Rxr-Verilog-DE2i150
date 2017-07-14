@@ -1,0 +1,96 @@
+
+/****************************************************************************/
+/********This module deals with the display parameters of the oscilloscope ********/
+/****************************************************************************/
+
+module oscilloscope (CLOCK_50,data1,data2,key,valid,oVS,oBLANK_N,oHS,oVGA_CLK,b_data,g_data,r_data); 
+input CLOCK_50; 
+input [1:0] data1; //user 1 decoded data from the receiver
+input [1:0] data2; //user 2 decoded data from the receiver
+input key; //key to switch user 1 and user 2's display on the VGA 
+input valid;	//used for storing & displaying only the required output 
+output oVGA_CLK ;
+output oVS;
+output oBLANK_N;
+output oHS;
+output reg [7:0] b_data ;
+output reg [7:0] g_data ;  
+output reg [7:0] r_data;         
+wire VGA_CLK_n;
+reg vga_clk_reg;
+wire iVGA_CLK;
+wire [10:0] CX;
+wire [9:0] CY;
+
+/*******Variables to hold the captured values*******/
+wire [9:0] ValforVGA; // Coordinate Y of the current Coordinate X
+reg [9:0] oldValforVGA; // Coordinate Y of the previous Coordinate X
+
+/************* Implementation of the 25MHz Clock *************/
+always @ (posedge CLOCK_50) 
+begin 
+	vga_clk_reg=~vga_clk_reg;
+end
+assign iVGA_CLK=vga_clk_reg;
+ 
+/***********Output clock**********/
+assign oVGA_CLK =~iVGA_CLK;
+
+/***********VGA Controller instance***********/
+VGA_Controller  inst(1'b0,iVGA_CLK,oBLANK_N,oHS,oVS,CX,CY);
+
+/***************Data display instance**************/
+data_display siginst(CLOCK_50, data1,data2,key, valid, oVGA_CLK, oVS, oBLANK_N,ValforVGA
+					 );
+assign VGA_CLK_n = ~iVGA_CLK;
+always@(posedge VGA_CLK_n)
+begin
+	oldValforVGA<=ValforVGA; //Update the value of the Coordinate Y of the previous Coordinate X
+	if (CY==ValforVGA) //Display the Coordinate Y of the current Coordinate X
+		begin
+			b_data=8'hFF;
+			g_data=8'h00;
+			r_data=8'h00;
+		end
+//Connect points with vertical lines (old value < new value)
+	else if ((CY<ValforVGA) && (CY>oldValforVGA))
+		begin
+			b_data=8'hFF;
+			g_data=8'h00;
+			r_data=8'h00;
+		end
+	else if ((CY>ValforVGA) && (CY<oldValforVGA))
+		begin
+			b_data=8'hFF;
+			g_data=8'h00;
+			r_data=8'h00;
+		end
+	//display the vertical guide lines
+	else if (CX==63 || CX==127 || CX==191 || CX==255 || CX==319 || CX==383 || CX==447 || CX==511 || CX==577)
+		begin
+			b_data=8'hFF;
+			g_data=8'hFF;
+			r_data=8'hFF;
+		end
+	//display the horizontal guide lines
+	else if (CY==59 || CY==119 || CY==179 || CY==299 || CY==359 || CY==419)
+		begin
+			b_data=8'hFF;
+			g_data=8'hFF;
+			r_data=8'hFF;
+		end
+	//Everything else is black
+	else if (CY==239)
+		begin
+			b_data=8'h00;
+			g_data=8'hFF;
+			r_data=8'h00;
+		end
+	else
+		begin
+			b_data=8'h00;
+			g_data=8'h00;
+			r_data=8'h00;
+		end
+end
+endmodule
