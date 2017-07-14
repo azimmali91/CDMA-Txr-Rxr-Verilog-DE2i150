@@ -1,0 +1,146 @@
+
+/****************************************************************************/
+/********This module displays the final decoded data of both users********/
+/****************************************************************************/
+
+module data_display(CLOCK_50,bit1,bit2,key,valid,VGA_clk,Vsyn,blank_n,Val_CY);						 
+input CLOCK_50;
+input [1:0] bit1;	//user 1 decoded data from the receiver
+input [1:0] bit2;	//user 2 decoded data from the receiver
+input key; //key to switch user 1 and user 2's display on the VGA 
+input VGA_clk; 
+input Vsyn;
+input blank_n;
+input valid; //used for storing & displaying only the required output 
+output reg [9:0] Val_CY; //Index for Coord_Y
+
+// Data display elements
+reg signed [4:0] captured_Vals1[0:639]; //to capture values of user 1
+reg signed [4:0] captured_Vals2[0:639];		//to capture values of user 2
+
+//Parameter Display Oscilloscope
+//Time
+parameter Ttotal=0.000025;
+parameter DivX=10.0;
+parameter pixelsH=640.0;
+parameter integer nf=50000000*Ttotal/639;     
+
+//Amplitude
+parameter Amp=4.0;
+parameter Atotal=16;
+parameter DivY=8.0;
+parameter pixelsV=480.0;
+parameter integer Apixels=Amp/(Atotal/479);
+
+
+//Variables to hold captured values
+reg [31:0] j=0; 
+reg [31:0] i=0;
+reg[2:0] cf=1;
+reg[3:0] cf_counter=4'h0;
+reg[31:0] mov=0;
+parameter integer nc=1;
+
+always@(negedge Vsyn)
+begin
+	if (cf_counter==cf)
+	begin
+		cf_counter<=0;
+		if (mov>=640-nf)
+			mov<=0;
+		else
+			mov<=mov+nf;
+	end
+	else
+		cf_counter<=cf_counter+1;
+end
+
+//Check if the received data is 1 or -1 and setting the amplitude accordingly
+always @ (posedge CLOCK_50)
+begin
+	if(bit1==2'b01)
+		begin
+			captured_Vals1[i]<=1;
+		end
+	else if(bit1==2'b11)
+		begin
+			captured_Vals1[i]<=2;
+		end
+	else
+		begin
+			captured_Vals1[i]<=0;
+		end
+	if(bit2==2'b01)
+		begin
+			captured_Vals2[i]<=1;
+		end
+	else if(bit2==2'b11)
+		begin
+			captured_Vals2[i]<=2;
+		end
+	else
+		begin
+			captured_Vals2[i]<=0;
+		end
+	if (i>=(640)-1)	
+		begin
+			//j<=0;		//to display a constant signal 
+		end
+	else
+		begin
+			i<=i+1;
+		end
+end
+
+/*******This procedural block is to display the signal at the right amplitude according to captured values of user data*********/
+always@(posedge VGA_clk)
+begin
+	if (blank_n==1) 
+        begin
+			if (key==1)
+				begin
+					if (captured_Vals1[j]==1)
+						begin
+							Val_CY<=239-Apixels;
+						end
+					else if (captured_Vals1[j]==2)
+						begin
+							Val_CY<=239+Apixels;
+						end
+					else
+						begin
+							Val_CY<=239;
+						end
+				end
+			else
+				begin
+					if (captured_Vals2[j]==1)
+						begin
+							Val_CY<=239-Apixels;
+						end
+					else if (captured_Vals2[j]==2)
+						begin
+							Val_CY<=239+Apixels;
+						end
+					else
+						begin
+							Val_CY<=239;
+						end
+				end
+					
+			if (j>=(640)-1)	
+				begin
+					//j<=0;		//to display a constant signal 
+				end
+			else
+				begin
+					j<=j+1;
+				end
+					  
+		end
+	else
+		begin 
+			j<=0;
+		end
+end	
+endmodule
